@@ -5,6 +5,7 @@
 /* Copyright (c) 1994-1996 David Hogan, see README for licence details */
 #define _SVID_SOURCE 1	/* putenv in glibc */
 #include <stdio.h>
+#include <stdarg.h>
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -53,6 +54,8 @@ Menu b2menu =
 char	*b3items[B3FIXED+MAXHIDDEN+1] =
 {
 	"New",
+	"Acme",
+	"Firefox",
 	"Reshape",
 	"Move",
 	"Delete",
@@ -63,6 +66,8 @@ char	*b3items[B3FIXED+MAXHIDDEN+1] =
 enum
 {
 	New,
+	Acme,
+	Firefox,
 	Reshape,
 	Move,
 	Delete,
@@ -78,6 +83,32 @@ Menu	egg =
 {
 	version
 };
+
+void termFn() 
+{
+	if(termprog != NULL){
+		execl(shell, shell, "-c", termprog, (char*)0);
+		fprintf(stderr, "rio: exec %s", shell);
+		perror(" failed");
+	}
+	execlp("9term", "9term", scrolling ? "-ws" : "-w", (char*)0);
+	execlp("xterm", "xterm", "-ut", (char*)0);
+	perror("rio: exec 9term/xterm failed");
+}
+
+void 
+firefoxFn() 
+{
+	execlp("firefox", "firefox", (char*)0);
+	perror("rio: exec firefox failed");
+}
+
+void 
+acmeFn() 
+{
+	execlp("acme", "acme", "-a", (char*)0);
+	perror("rio: exec firefox failed");
+}
 
 void
 button(XButtonEvent *e)
@@ -156,7 +187,13 @@ button(XButtonEvent *e)
 		cmapnofocus(s);
 	switch (n = menuhit(e, &b3menu)){
 	case New:
-		spawn(s);
+		spawn(s, termFn);
+		break;
+	case Acme:
+		spawn(s, acmeFn);
+		break;
+	case Firefox:
+		spawn(s, firefoxFn);
 		break;
 	case Reshape:
 		reshape(selectwin(1, 0, s), Button3, sweep, 0);
@@ -183,7 +220,7 @@ button(XButtonEvent *e)
 }
 
 void
-spawn(ScreenInfo *s)
+spawn(ScreenInfo *s, void (*fn)())
 {
 	/*
 	 * ugly dance to cause sweeping for terminals.
@@ -204,14 +241,7 @@ spawn(ScreenInfo *s)
 			signal(SIGINT, SIG_DFL);
 			signal(SIGTERM, SIG_DFL);
 			signal(SIGHUP, SIG_DFL);
-			if(termprog != NULL){
-				execl(shell, shell, "-c", termprog, (char*)0);
-				fprintf(stderr, "rio: exec %s", shell);
-				perror(" failed");
-			}
-			execlp("9term", "9term", scrolling ? "-ws" : "-w", (char*)0);
-			execlp("xterm", "xterm", "-ut", (char*)0);
-			perror("rio: exec 9term/xterm failed");
+			fn();
 			exit(1);
 		}
 		exit(0);
