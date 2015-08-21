@@ -54,8 +54,8 @@ Menu b2menu =
 char	*b3items[B3FIXED+MAXHIDDEN+1] =
 {
 	"New",
-	"Acme",
-	"Firefox",
+	"Editor",
+	"Browser",
 	"Reshape",
 	"Move",
 	"Delete",
@@ -97,17 +97,17 @@ void termFn()
 }
 
 void 
-firefoxFn() 
+browserFn() 
 {
-	execlp("firefox", "firefox", (char*)0);
-	perror("rio: exec firefox failed");
+	execlp(browser, browser, (char*)0);
+	perror("rio: exec browser failed");
 }
 
 void 
-acmeFn() 
+editorFn() 
 {
-	execlp("acme", "acme", "-a", (char*)0);
-	perror("rio: exec firefox failed");
+	execlp(editor, editor, (char*)0);
+	perror("rio: exec editor failed");
 }
 
 void
@@ -190,10 +190,10 @@ button(XButtonEvent *e)
 		spawn(s, termFn);
 		break;
 	case Acme:
-		spawn(s, acmeFn);
+		spawn(s, editorFn);
 		break;
 	case Firefox:
-		spawn(s, firefoxFn);
+		spawn(s, browserFn);
 		break;
 	case Reshape:
 		reshape(selectwin(1, 0, s), Button3, sweep, 0);

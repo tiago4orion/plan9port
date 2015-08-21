@@ -19,6 +19,9 @@
 #define DEFSHELL	"/bin/sh"
 #endif
 
+#define DEFEDITOR "acme"
+#define DEFBROWSER "firefox"
+
 typedef struct Client Client;
 typedef struct Menu Menu;
 typedef struct ScreenInfo ScreenInfo;
@@ -141,6 +144,8 @@ extern char		**myargv;
 extern Bool 		shape;
 extern char 		*termprog;
 extern char 		*shell;
+extern char		*editor;
+extern char 		*browser;
 extern char 		*version[];
 extern int			_border;
 extern int			_corner;

@@ -29,6 +29,8 @@ int 			nostalgia;
 char			**myargv;
 char			*termprog;
 char			*shell;
+char 			*editor;
+char 			*browser;
 Bool			shape;
 int 			_border = 4;
 int 			_corner = 25;
@@ -142,6 +144,14 @@ main(int argc, char *argv[])
 	shell = (char *)getenv("SHELL");
 	if(shell == NULL)
 		shell = DEFSHELL;
+		
+	editor = (char *)getenv("EDITOR");
+	if(editor == NULL)
+		editor = DEFEDITOR;
+		
+	browser = (char *)getenv("BROWSER");
+	if(browser == NULL)
+		browser = DEFBROWSER;
 
 	dpy = XOpenDisplay("");
 	if(dpy == 0)
