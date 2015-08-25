@@ -704,6 +704,7 @@ wkeyctl(Window *w, Rune r)
 		wsnarf(w);
 		wcut(w);
 	}
+
 	switch(r){
 	case 0x7F:		/* send interrupt */
 		w->qh = w->nr;
@@ -713,6 +714,7 @@ wkeyctl(Window *w, Rune r)
 		return;
 	case 0x06:	/* ^F: file name completion */
 	case Kins:		/* Insert: file name completion */
+	case Ktab:
 		rp = namecomplete(w);
 		if(rp == nil)
 			return;
