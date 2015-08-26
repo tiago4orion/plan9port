@@ -87,10 +87,11 @@ Menu	egg =
 void termFn() 
 {
 	if(termprog != NULL){
-		execl(shell, shell, "-c", termprog, (char*)0);
+		execlp(termprog, termprog, (char*)0);
 		fprintf(stderr, "rio: exec %s", shell);
 		perror(" failed");
 	}
+	
 	execlp("9term", "9term", scrolling ? "-ws" : "-w", (char*)0);
 	execlp("xterm", "xterm", "-ut", (char*)0);
 	perror("rio: exec 9term/xterm failed");
