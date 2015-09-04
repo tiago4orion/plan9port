@@ -30,7 +30,7 @@ char			**myargv;
 char			*termprog;
 char			*shell;
 char 			*editor;
-char 			*browser;
+char 			*launcher;
 Bool			shape;
 int 			_border = 4;
 int 			_corner = 25;
@@ -72,7 +72,7 @@ char	*fontlist[] = {
 void
 usage(void)
 {
-	fprintf(stderr, "usage: rio [-grey] [-font fname] [-s] [-term prog] [-version] [-virtuals num] [exit|restart]\n");
+	fprintf(stderr, "usage: rio [-grey] [-font fname] [-s] [-term prog] [-launcher prog] [-version] [-virtuals num] [exit|restart]\n");
 	exit(1);
 }
 
@@ -110,6 +110,8 @@ main(int argc, char *argv[])
 		}
 		else if(strcmp(argv[i], "-term") == 0 && i+1<argc)
 			termprog = argv[++i];
+		else if(strcmp(argv[i], "-launcher") == 0 && i+1<argc)
+			launcher = argv[++i];
 		else if(strcmp(argv[i], "-virtuals") == 0 && i+1<argc){
 			numvirtuals = atoi(argv[++i]);
 			if(numvirtuals < 0 || numvirtuals > 12){
@@ -144,14 +146,10 @@ main(int argc, char *argv[])
 	shell = (char *)getenv("SHELL");
 	if(shell == NULL)
 		shell = DEFSHELL;
-		
+
 	editor = (char *)getenv("EDITOR");
 	if(editor == NULL)
 		editor = DEFEDITOR;
-		
-	browser = (char *)getenv("BROWSER");
-	if(browser == NULL)
-		browser = DEFBROWSER;
 
 	dpy = XOpenDisplay("");
 	if(dpy == 0)
@@ -263,7 +261,7 @@ initscreen(ScreenInfo *s, int i, int background)
 	s->min_cmaps = MinCmapsOfScreen(ScreenOfDisplay(dpy, i));
 	s->depth = DefaultDepth(dpy, i);
 
-	/* 
+	/*
 	 * Figure out underlying screen format.
 	 */
 	if(XMatchVisualInfo(dpy, i, 16, TrueColor, &xvi)
@@ -298,7 +296,7 @@ initscreen(ScreenInfo *s, int i, int background)
 		s->vis = DefaultVisual(dpy, i);
 	}
 	if(DefaultDepth(dpy, i) != s->depth){
-		s->def_cmap = XCreateColormap(dpy, s->root, s->vis, AllocNone); 
+		s->def_cmap = XCreateColormap(dpy, s->root, s->vis, AllocNone);
 	}
 
 	ds = DisplayString(dpy);
@@ -354,7 +352,7 @@ initscreen(ScreenInfo *s, int i, int background)
 	attr.cursor = s->arrow;
 	attr.event_mask = SubstructureRedirectMask
 		| SubstructureNotifyMask | ColormapChangeMask
-		| ButtonPressMask | ButtonReleaseMask | PropertyChangeMask 
+		| ButtonPressMask | ButtonReleaseMask | PropertyChangeMask
 		| KeyPressMask | EnterWindowMask;
 	mask = CWCursor|CWEventMask;
 	XChangeWindowAttributes(dpy, s->root, mask, &attr);

@@ -55,7 +55,7 @@ char	*b3items[B3FIXED+MAXHIDDEN+1] =
 {
 	"New",
 	"Editor",
-	"Browser",
+	"Launcher",
 	"Reshape",
 	"Move",
 	"Delete",
@@ -67,7 +67,7 @@ enum
 {
 	New,
 	Acme,
-	Firefox,
+	Launcher,
 	Reshape,
 	Move,
 	Delete,
@@ -97,10 +97,10 @@ void termFn()
 }
 
 void 
-browserFn() 
+launcherFn() 
 {
-	execlp(browser, browser, (char*)0);
-	perror("rio: exec browser failed");
+	execlp(launcher, launcher, (char*)0);
+	perror("rio: exec launcher failed");
 }
 
 void 
@@ -192,8 +192,8 @@ button(XButtonEvent *e)
 	case Acme:
 		spawn(s, editorFn);
 		break;
-	case Firefox:
-		spawn(s, browserFn);
+	case Launcher:
+		spawn(s, launcherFn);
 		break;
 	case Reshape:
 		reshape(selectwin(1, 0, s), Button3, sweep, 0);
