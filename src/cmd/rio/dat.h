@@ -20,7 +20,6 @@
 #endif
 
 #define DEFEDITOR "acme"
-#define DEFBROWSER "firefox"
 
 typedef struct Client Client;
 typedef struct Menu Menu;
@@ -145,7 +144,7 @@ extern Bool 		shape;
 extern char 		*termprog;
 extern char 		*shell;
 extern char		*editor;
-extern char 		*browser;
+extern char 		*launcher;
 extern char 		*version[];
 extern int			_border;
 extern int			_corner;
