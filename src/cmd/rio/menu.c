@@ -55,7 +55,7 @@ char	*b3items[B3FIXED+MAXHIDDEN+1] =
 {
 	"New",
 	"Editor",
-	"Browser",
+	"Launcher",
 	"Reshape",
 	"Move",
 	"Delete",
@@ -67,7 +67,7 @@ enum
 {
 	New,
 	Acme,
-	Firefox,
+	Launcher,
 	Reshape,
 	Move,
 	Delete,
@@ -87,20 +87,21 @@ Menu	egg =
 void termFn() 
 {
 	if(termprog != NULL){
-		execl(shell, shell, "-c", termprog, (char*)0);
+		execlp(termprog, termprog, (char*)0);
 		fprintf(stderr, "rio: exec %s", shell);
 		perror(" failed");
 	}
+	
 	execlp("9term", "9term", scrolling ? "-ws" : "-w", (char*)0);
 	execlp("xterm", "xterm", "-ut", (char*)0);
 	perror("rio: exec 9term/xterm failed");
 }
 
 void 
-browserFn() 
+launcherFn() 
 {
-	execlp(browser, browser, (char*)0);
-	perror("rio: exec browser failed");
+	execlp(launcher, launcher, (char*)0);
+	perror("rio: exec launcher failed");
 }
 
 void 
@@ -192,8 +193,8 @@ button(XButtonEvent *e)
 	case Acme:
 		spawn(s, editorFn);
 		break;
-	case Firefox:
-		spawn(s, browserFn);
+	case Launcher:
+		spawn(s, launcherFn);
 		break;
 	case Reshape:
 		reshape(selectwin(1, 0, s), Button3, sweep, 0);
