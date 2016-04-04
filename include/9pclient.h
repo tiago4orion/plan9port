@@ -27,6 +27,7 @@ long fspwrite(CFid*, void*, long, vlong);
 vlong fsseek(CFid*, vlong, int);
 long fswrite(CFid*, void*, long);
 void fsclose(CFid*);
+int fsflush(CFid*);
 void fsunmount(CFsys*);
 void _fsunmount(CFsys*);	/* do not close fd */
 struct Dir;	/* in case there's no lib9.h */

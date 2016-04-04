@@ -15,31 +15,35 @@ allocfusemsg(void)
 {
 	FuseMsg *m, *fm = nil;
 	void *vbuf;
+        int mlen = sizeof(*m) + fusebufsize;
 
-        m = emalloc(sizeof(*m) + fusebufsize);
-        vbuf = m+1;
-        m->buf = vbuf;
-        m->nbuf = 0;
-        m->hdr = vbuf;
-        m->tx = m->hdr+1;
-        m->next = nil;
-        m->prev = nil;
+        m = emalloc(mlen);
+
+        memset(m, 0, mlen);
+
+	vbuf = m+1;
+	m->buf = vbuf;
+	m->nbuf = 0;
+	m->hdr = vbuf;
+	m->tx = m->hdr+1;
+        m->next = m->prev = nil;
 
 	lock(&fusemsglock);
+
+        printf("alloc init: Fusemsglist: %p\n", fusemsglist);
 
         if(fusemsglist == nil){
                 fusemsglist = m;
         } else {
-                for(fm = fusemsglist; fm != nil; fm->next){
-                        if(fm->next == nil){
-                                fm->next = m;
-                                m->prev = fm;
-                                break;
-                        }
-                }
+                m->next = fusemsglist;
+                m->prev = nil;
+                fusemsglist = m;
+                fusemsglist->next->prev = fusemsglist;
         }
 
 	unlock(&fusemsglock);
+
+        printf("alloc end: m = %p\n", m);
 	return m;
 }
 
@@ -47,14 +51,23 @@ void
 freefusemsg(FuseMsg *m)
 {
 	lock(&fusemsglock);
-        if(m != fusemsglist){
-                m->prev->next = m->next;
+
+        printf("Free init: Fusemsglist: %p\n", fusemsglist);
+
+        if(m == fusemsglist && m->next != nil){
+                fusemsglist = m->next;
+                fusemsglist->prev = nil;
+        } else {
+                if(m->prev != nil && m->next != nil){
+                        m->prev->next = m->next;
+                        m->next->prev = m->prev;
+                }
         }
 
-        unlock(&fusemsglock);
+        printf("Free end: Fusemsglist: %p\n", fusemsglist);
+	unlock(&fusemsglock);
 
-        printf("Freeying m.unique=%d\n", m->hdr->unique);
-        //free(m);
+        free(m);
 }
 
 FuseMsg*

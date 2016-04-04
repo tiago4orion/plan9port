@@ -33,10 +33,23 @@ fsfremove(CFid *fid)
 {
 	int n;
 	Fcall tx, rx;
-	
+
 	tx.type = Tremove;
 	tx.fid = fid->fid;
 	n = _fsrpc(fid->fs, &tx, &rx, 0);
 	_fsputfid(fid);
 	return n;
+}
+
+int
+fsflush(CFid *fid)
+{
+        int n;
+        Fcall tx, rx;
+
+        tx.type = Tflush;
+        tx.fid = fid->fid;
+        n = _fsrpc(fid->fs, &tx, &rx, 0);
+        _fsputfid(fid);
+        return n;
 }

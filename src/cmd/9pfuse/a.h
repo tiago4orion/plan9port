@@ -30,6 +30,8 @@ struct FuseMsg
 	int nbuf;
 	struct fuse_in_header *hdr;	/* = buf */
 	void *tx;	/* = hdr+1 */
+        Lock l;
+        int flushed;
 };
 
 extern int debug;

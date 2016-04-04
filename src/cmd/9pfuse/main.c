@@ -827,11 +827,22 @@ fuseread(FuseMsg *m)
 		n = fusemaxwrite;
 	buf = emalloc(n);
 	n = fspread(fid, buf, n, in->offset);
+
+        lock(&m->l);
+        if(m->flushed > 0){
+                unlock(&m->l);
+                replyfuse(m, nil, 0);
+                return;
+        }
+
+        unlock(&m->l);
+
 	if(n < 0){
 		free(buf);
 		replyfuseerrstr(m);
 		return;
 	}
+
 	replyfuse(m, buf, n);
 	free(buf);
 }
@@ -1091,32 +1102,45 @@ fusesomething(FuseMsg *m)
         CFid *fid;
         struct fuse_interrupt_in *in;
         FuseMsg *fm;
-        int n;
+        int n, last;
 
         printf("Interrupt received!\n");
         printf("Opcode: %d\n", m->hdr->opcode);
         printf("Nodeid: %d\n", m->hdr->nodeid);
         printf("Pid: %d\n", m->hdr->pid);
+        printf("Unique: %x\n", m->hdr->unique);
 
         in = m->tx;
+        last = in->unique - 1;
 
         lock(&fusemsglock);
-        for(fm = fusemsglist; fm != nil; fm = fm->next) {
-                printf("Msg.hdr.unique = %d\n", fm->hdr->unique);
 
-                if(fm->hdr->unique == (in->unique-1))
-                        break;
+        for(fm = fusemsglist; fm != nil; fm = fm->next) {
+                printf("Msg.hdr = %p\n", fm->hdr);
+
+                if(fm->hdr != nil){
+                        printf("Msg.hdr.unique = %x\n", fm->hdr->unique);
+                        // BUG
+                        if(int(fm->hdr->unique) == last)
+                                break;
+                }
         }
 
         unlock(&fusemsglock);
 
+        printf("bump fm: %x.\n", fm->hdr->unique);
+
         if(fm == nil || fm->hdr->unique != (in->unique-1)){
-                printf("bloh: %d\n", fm);
+                printf("bloh: %p\n", fm);
                 replyfuseerrstr(m);
                 return;
         }
 
+        printf("Get correct fm: %x.\n", fm->hdr->unique);
+
         fid = nodeid2fid(fm->hdr->nodeid);
+
+        printf("Get correct fid: %p.\n", fid);
 
         if(fid == nil){
                 printf("bleh\n");
@@ -1124,15 +1148,23 @@ fusesomething(FuseMsg *m)
                 return;
         }
 
+        printf("preparing to fsflush...\n");
+
         if((n = fsflush(fid)) < 0){
                 printf("Im here: n=%d\n", n);
                 replyfuseerrstr(m);
                 return;
         }
 
+        printf("Flush successfully.\n");
+
+        lock(&fm->l);
+        fm->flushed++;
+        unlock(&fm->l);
+
         printf("Im here: n=%d\n", n);
 
-        replyfuse(fm, nil, 0);
+        replyfuse(m, nil, 0);
 }
 
 /*
