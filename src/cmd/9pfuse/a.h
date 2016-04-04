@@ -25,6 +25,7 @@ typedef struct FuseMsg FuseMsg;
 struct FuseMsg
 {
 	FuseMsg *next;
+        FuseMsg *prev;
 	uchar *buf;
 	int nbuf;
 	struct fuse_in_header *hdr;	/* = buf */
