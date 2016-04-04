@@ -13,22 +13,33 @@ void unmountfuse(char *mtpt);
 FuseMsg*
 allocfusemsg(void)
 {
-	FuseMsg *m;
+	FuseMsg *m, *fm = nil;
 	void *vbuf;
-	
+
+        m = emalloc(sizeof(*m) + fusebufsize);
+        vbuf = m+1;
+        m->buf = vbuf;
+        m->nbuf = 0;
+        m->hdr = vbuf;
+        m->tx = m->hdr+1;
+        m->next = nil;
+        m->prev = nil;
+
 	lock(&fusemsglock);
-	if((m = fusemsglist) != nil){
-		fusemsglist = m->next;
-		unlock(&fusemsglock);
-		return m;
-	}
+
+        if(fusemsglist == nil){
+                fusemsglist = m;
+        } else {
+                for(fm = fusemsglist; fm != nil; fm->next){
+                        if(fm->next == nil){
+                                fm->next = m;
+                                m->prev = fm;
+                                break;
+                        }
+                }
+        }
+
 	unlock(&fusemsglock);
-	m = emalloc(sizeof(*m) + fusebufsize);
-	vbuf = m+1;
-	m->buf = vbuf;
-	m->nbuf = 0;
-	m->hdr = vbuf;
-	m->tx = m->hdr+1;
 	return m;
 }
 
@@ -36,9 +47,14 @@ void
 freefusemsg(FuseMsg *m)
 {
 	lock(&fusemsglock);
-	m->next = fusemsglist;
-	fusemsglist = m;
-	unlock(&fusemsglock);
+        if(m != fusemsglist){
+                m->prev->next = m->next;
+        }
+
+        unlock(&fusemsglock);
+
+        printf("Freeying m.unique=%d\n", m->hdr->unique);
+        //free(m);
 }
 
 FuseMsg*
@@ -46,9 +62,12 @@ readfusemsg(void)
 {
 	FuseMsg *m;
 	int n, nn;
-	
+
 	m = allocfusemsg();
 	errno = 0;
+
+        printf("Im here: %p\n", m);
+
 	/*
 	 * The FUSE kernel device apparently guarantees
 	 * that this read will return exactly one message.
@@ -62,6 +81,7 @@ readfusemsg(void)
 			sysfatal("readfusemsg: %r");
 	}
 	if(n <= 0){
+                printf("what's happening?\n");
 		fuseeof = 1;
 		freefusemsg(m);
 		return nil;
@@ -81,7 +101,7 @@ readfusemsg(void)
 		sysfatal("readfusemsg: got %d wanted %d",
 			n, m->hdr->len);
 	m->hdr->len -= sizeof(*m->hdr);
-	
+
 	/*
 	 * Paranoia.
 	 * Make sure lengths are long enough.
@@ -122,7 +142,7 @@ readfusemsg(void)
 		if(((char*)m->tx)[m->hdr->len-1] != 0
 		|| memchr(m->tx, 0, m->hdr->len-1) == 0)
 			goto bad;
-		break;	
+		break;
 	case FUSE_MKNOD:
 		if(m->hdr->len <= sizeof(struct fuse_mknod_in)
 		|| ((char*)m->tx)[m->hdr->len-1] != 0)
@@ -209,14 +229,21 @@ readfusemsg(void)
 		|| ((char*)m->tx)[m->hdr->len-1] != 0)
 			goto bad;
 		break;
+	case FUSE_INTERRUPT:
+		if(m->hdr->len < sizeof(struct fuse_interrupt_in)) {
+                        fprint(2, "FUSE - WRONG length = %d : %d\n", m->hdr->len, sizeof(struct fuse_interrupt_in));
+			goto bad;
+                }
+		break;
 	}
+
 	if(debug)
 		fprint(2, "FUSE -> %G\n", m->hdr, m->tx);
 	return m;
 }
 
 /*
- * Reply to FUSE request m using additonal 
+ * Reply to FUSE request m using additonal
  * argument buffer arg of size narg bytes.
  * Perhaps should free the FuseMsg here?
  */
@@ -226,7 +253,7 @@ replyfuse(FuseMsg *m, void *arg, int narg)
 	struct iovec vec[2];
 	struct fuse_out_header hdr;
 	int nvec;
-	
+
 	hdr.len = sizeof hdr + narg;
 	hdr.error = 0;
 	hdr.unique = m->hdr->unique;
@@ -252,7 +279,7 @@ void
 replyfuseerrno(FuseMsg *m, int e)
 {
 	struct fuse_out_header hdr;
-	
+
 	hdr.len = sizeof hdr;
 	hdr.error = -e;	/* FUSE sends negative errnos. */
 	hdr.unique = m->hdr->unique;
@@ -304,12 +331,12 @@ initfuse(char *mtpt)
 	/*
 	 * Complain if the kernel is too new.
 	 * We could forge ahead, but at least the one time I tried,
-	 * the kernel rejected the newer version by making the 
+	 * the kernel rejected the newer version by making the
 	 * writev fail in replyfuse, which is a much more confusing
-	 * error message.  In the future, might be nice to try to 
+	 * error message.  In the future, might be nice to try to
 	 * support older versions that differ only slightly.
 	 */
-	if(tx->major < FUSE_KERNEL_VERSION 
+	if(tx->major < FUSE_KERNEL_VERSION
 	|| (tx->major == FUSE_KERNEL_VERSION && tx->minor < FUSE_KERNEL_MINOR_VERSION))
 		sysfatal("fuse: too kernel version %d.%d older than program version %d.%d",
 			tx->major, tx->minor, FUSE_KERNEL_VERSION, FUSE_KERNEL_MINOR_VERSION);
@@ -322,7 +349,7 @@ initfuse(char *mtpt)
 }
 
 /*
- * Print FUSE messages.  Assuming it is installed as %G,
+ * Print FUSE messages.	 Assuming it is installed as %G,
  * use %G with hdr, arg arguments to format a request,
  * and %#G with reqhdr, hdr, arg arguments to format a response.
  * The reqhdr is necessary in the %#G form because the
@@ -332,7 +359,7 @@ int
 fusefmt(Fmt *fmt)
 {
 	struct fuse_in_header *hdr = va_arg(fmt->args, void*);
-	if((fmt->flags&FmtSharp) == 0){  /* "%G", hdr, arg */
+	if((fmt->flags&FmtSharp) == 0){	 /* "%G", hdr, arg */
 		void *a = va_arg(fmt->args, void*);
 		fmtprint(fmt, "len %d unique %#llux uid %d gid %d pid %d ",
 			hdr->len, hdr->unique, hdr->uid, hdr->gid, hdr->pid);
@@ -383,7 +410,7 @@ fusefmt(Fmt *fmt)
 			}
 			case FUSE_SYMLINK: {
 				char *old, *new;
-				
+
 				old = a;
 				new = a + strlen(a) + 1;
 				fmtprint(fmt, "Symlink nodeid %#llux old %#q new %#q",
@@ -452,7 +479,7 @@ fusefmt(Fmt *fmt)
 			case FUSE_RELEASE: {
 				struct fuse_release_in *tx = a;
 				fmtprint(fmt, "Release nodeid %#llux fh %#llux flags %#ux",
-					hdr->nodeid, tx->fh, tx->flags); 
+					hdr->nodeid, tx->fh, tx->flags);
 				break;
 			}
 			case FUSE_FSYNC: {
@@ -513,7 +540,7 @@ fusefmt(Fmt *fmt)
 			case FUSE_RELEASEDIR: {
 				struct fuse_release_in *tx = a;
 				fmtprint(fmt, "Releasedir nodeid %#llux fh %#llux flags %#ux",
-					hdr->nodeid, tx->fh, tx->flags); 
+					hdr->nodeid, tx->fh, tx->flags);
 				break;
 			}
 			case FUSE_FSYNCDIR: {
@@ -534,6 +561,13 @@ fusefmt(Fmt *fmt)
 					hdr->nodeid, tx->flags, tx->mode, tx+1);
 				break;
 			}
+			case FUSE_INTERRUPT: {
+				struct fuse_interrupt_in *tx = a;
+				fmtprint(fmt, "Interrupt nodeid %#llx unique %#llx",
+					 hdr->nodeid, tx->unique);
+				break;
+
+			}
 		}
 	}else{  /* "%#G", reqhdr, hdr, arg - use reqhdr only for type */
 		struct fuse_out_header *ohdr = va_arg(fmt->args, void*);
@@ -551,7 +585,7 @@ fusefmt(Fmt *fmt)
 			case FUSE_LOOKUP: {
 				/*
 				 * For a negative entry, can send back ENOENT
-				 * or rx->ino == 0.  
+				 * or rx->ino == 0.
 				 * In protocol version 7.4 and before, can only use
 				 * the ENOENT method.
 				 * Presumably the benefit of sending rx->ino == 0
@@ -568,7 +602,7 @@ fusefmt(Fmt *fmt)
 					rx->attr_valid+rx->attr_valid_nsec*1e-9);
 				fmtprint(fmt, " ino %#llux size %lld blocks %lld atime %.20g mtime %.20g ctime %.20g mode %#uo nlink %d uid %d gid %d rdev %#ux",
 					rx->attr.ino, rx->attr.size, rx->attr.blocks,
-					rx->attr.atime+rx->attr.atimensec*1e-9, 
+					rx->attr.atime+rx->attr.atimensec*1e-9,
 					rx->attr.mtime+rx->attr.mtimensec*1e-9,
 					rx->attr.ctime+rx->attr.ctimensec*1e-9,
 					rx->attr.mode, rx->attr.nlink, rx->attr.uid,
@@ -589,7 +623,7 @@ fusefmt(Fmt *fmt)
 					rx->attr_valid+rx->attr_valid_nsec*1e-9);
 				fmtprint(fmt, " ino %#llux size %lld blocks %lld atime %.20g mtime %.20g ctime %.20g mode %#uo nlink %d uid %d gid %d rdev %#ux",
 					rx->attr.ino, rx->attr.size, rx->attr.blocks,
-					rx->attr.atime+rx->attr.atimensec*1e-9, 
+					rx->attr.atime+rx->attr.atimensec*1e-9,
 					rx->attr.mtime+rx->attr.mtimensec*1e-9,
 					rx->attr.ctime+rx->attr.ctimensec*1e-9,
 					rx->attr.mode, rx->attr.nlink, rx->attr.uid,
@@ -730,13 +764,20 @@ fusefmt(Fmt *fmt)
 					rx->e.attr_valid+rx->e.attr_valid_nsec*1e-9);
 				fmtprint(fmt, " ino %#llux size %lld blocks %lld atime %.20g mtime %.20g ctime %.20g mode %#uo nlink %d uid %d gid %d rdev %#ux",
 					rx->e.attr.ino, rx->e.attr.size, rx->e.attr.blocks,
-					rx->e.attr.atime+rx->e.attr.atimensec*1e-9, 
+					rx->e.attr.atime+rx->e.attr.atimensec*1e-9,
 					rx->e.attr.mtime+rx->e.attr.mtimensec*1e-9,
 					rx->e.attr.ctime+rx->e.attr.ctimensec*1e-9,
 					rx->e.attr.mode, rx->e.attr.nlink, rx->e.attr.uid,
 					rx->e.attr.gid, rx->e.attr.rdev);
 				fmtprint(fmt, " fh %#llux flags %#ux", rx->o.fh, rx->o.open_flags);
 				break;
+			}
+			case FUSE_INTERRUPT: {
+				struct fuse_interrupt_in *tx = a;
+				fmtprint(fmt, "Interrupt nodeid %#llx unique %#llx",
+					 hdr->nodeid, tx->unique);
+				break;
+
 			}
 		}
 	}
@@ -750,7 +791,7 @@ fusefmt(Fmt *fmt)
 
 /*
  * Mounts a fuse file system on mtpt and returns
- * a file descriptor for the corresponding fuse 
+ * a file descriptor for the corresponding fuse
  * message conversation.
  */
 int
@@ -759,7 +800,7 @@ mountfuse(char *mtpt)
 #if defined(__linux__)
 	int p[2], pid, fd;
 	char buf[20];
-	
+
 	if(socketpair(AF_UNIX, SOCK_STREAM, 0, p) < 0)
 		return -1;
 	pid = fork();
@@ -780,11 +821,11 @@ mountfuse(char *mtpt)
 #elif defined(__FreeBSD__) && !defined(__APPLE__)
 	int pid, fd;
 	char buf[20];
-	
+
 	if((fd = open("/dev/fuse", ORDWR)) < 0)
 		return -1;
 	snprint(buf, sizeof buf, "%d", fd);
-	
+
 	pid = fork();
 	if(pid < 0)
 		return -1;
@@ -799,7 +840,7 @@ mountfuse(char *mtpt)
 	char buf[20];
 	struct vfsconf vfs;
 	char *f, *v;
-	
+
 	if(getvfsbyname(v="osxfusefs", &vfs) < 0 && getvfsbyname(v="fusefs", &vfs) < 0){
 		if(access((v="osxfusefs", f="/Library/Filesystems/osxfusefs.fs"
 			"/Support/load_osxfusefs"), 0) < 0 &&
@@ -827,7 +868,7 @@ mountfuse(char *mtpt)
 			return -1;
 		}
 	}
-	
+
 	/* Look for available FUSE device. */
 	for(i=0;; i++){
 		snprint(buf, sizeof buf, "/dev/%.*s%d", strlen(v)-2, v, i);
@@ -871,7 +912,7 @@ mountfuse(char *mtpt)
 		_exit(1);
 	}
 	return fd;
-	
+
 #else
 	werrstr("cannot mount fuse on this system");
 	return -1;

@@ -25,6 +25,7 @@ typedef struct FuseMsg FuseMsg;
 struct FuseMsg
 {
 	FuseMsg *next;
+        FuseMsg *prev;
 	uchar *buf;
 	int nbuf;
 	struct fuse_in_header *hdr;	/* = buf */
@@ -39,6 +40,7 @@ extern int fusebufsize;
 extern int fusemaxwrite;
 extern FuseMsg *fusemsglist;
 extern char *fusemtpt;
+extern Lock fusemsglock;
 
 void		freefusemsg(FuseMsg *m);
 int		fusefmt(Fmt*);
